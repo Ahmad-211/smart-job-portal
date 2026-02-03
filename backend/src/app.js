@@ -9,6 +9,7 @@ dotenv.config();
 
 // Import routes
 const authRoutes = require('./routes/auth.routes');
+const jobRoutes = require('./routes/job.routes');
 
 // Initialize express app
 const app = express();
@@ -25,6 +26,7 @@ app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/jobs', jobRoutes);
 
 // Health check route
 app.get('/api/health', (req, res) => {
@@ -44,7 +46,10 @@ app.get('/', (req, res) => {
       health: 'GET /api/health',
       register: 'POST /api/auth/register',
       login: 'POST /api/auth/login',
-      me: 'GET /api/auth/me (protected)'
+      me: 'GET /api/auth/me (protected)',
+      jobs: 'GET /api/jobs',
+      'create job': 'POST /api/jobs (employer only)',
+      'get job': 'GET /api/jobs/:id'
     }
   });
 });
