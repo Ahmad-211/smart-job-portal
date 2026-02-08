@@ -14,6 +14,7 @@ const jobRoutes = require('./routes/job.routes');
 const resumeRoutes = require('./routes/resume.routes');
 const applicationRoutes = require('./routes/application.routes');
 const adminRoutes = require('./routes/admin.routes');
+const recommendationRoutes = require('./routes/recommendation.routes');
 
 // Initialize express app
 const app = express();
@@ -36,7 +37,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/jobs', jobRoutes);
 app.use('/api/resume', resumeRoutes);
 app.use('/api/applications', applicationRoutes);
-app.use('/api/admin', adminRoutes); // Admin routes
+app.use('/api/admin', adminRoutes);
+app.use('/api/recommendations', recommendationRoutes); // Recommendation routes
 
 // Health check route
 app.get('/api/health', (req, res) => {
@@ -66,6 +68,11 @@ app.get('/', (req, res) => {
       'apply job': 'POST /api/applications (jobseeker only)',
       'my applications': 'GET /api/applications/my-applications (protected)',
       'job applicants': 'GET /api/applications/job/:jobId/applicants (employer only)',
+      'recommended jobs': 'GET /api/recommendations/jobs (jobseeker only)',
+      'similar jobs': 'GET /api/recommendations/jobs/similar/:jobId',
+      'skill gap analysis': 'GET /api/recommendations/skill-gap/:jobId (jobseeker only)',
+      'trending jobs': 'GET /api/recommendations/trending',
+      'personalized feed': 'GET /api/recommendations/feed (jobseeker only)',
       'admin users': 'GET /api/admin/users (admin only)',
       'admin stats': 'GET /api/admin/stats (admin only)'
     }
