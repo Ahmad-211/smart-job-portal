@@ -5,7 +5,12 @@ const {
   getJobById,
   updateJob,
   deleteJob,
-  getEmployerJobs
+  getEmployerJobs,
+  advancedSearch,
+  getSearchStats,
+  getSkillSuggestions,
+  searchByLocations,
+  getJobsBySalaryRange
 } = require('../controllers/job.controller');
 const { protect, restrictTo } = require('../middlewares/auth');
 const {
@@ -19,6 +24,11 @@ const router = express.Router();
 
 // Public routes (no authentication required)
 router.get('/', searchJobValidator, validate, getAllJobs);
+router.get('/search', searchJobValidator, validate, advancedSearch);
+router.get('/search/stats', getSearchStats);
+router.get('/search/skills', getSkillSuggestions);
+router.get('/search/locations', searchByLocations);
+router.get('/search/salary-range', getJobsBySalaryRange);
 router.get('/:id', getJobById);
 
 // Protected routes (require authentication)

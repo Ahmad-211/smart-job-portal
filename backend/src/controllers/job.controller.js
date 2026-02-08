@@ -1,4 +1,9 @@
 const Job = require('../models/Job');
+const {
+  buildSearchAggregation,
+  getSearchStats,
+  getSkillSuggestions
+} = require('../utils/searchUtils');
 
 // @desc    Create a new job
 // @route   POST /api/jobs
@@ -78,6 +83,10 @@ exports.getAllJobs = async (req, res) => {
       limit = 10
     } = req.query;
 
+    // ✅ FIX: Parse pagination parameters
+    const pageNum = parseInt(page) || 1;
+    const limitNum = Math.min(parseInt(limit) || 10, 50);
+
     // Build query object
     const queryObj = { isActive: true };
 
@@ -88,7 +97,7 @@ exports.getAllJobs = async (req, res) => {
     // Skills filter (array)
     if (skills) {
       const skillsArray = Array.isArray(skills) ? skills : [skills];
-      queryObj.skillsRequired = { $all: skillsArray };
+      queryObj.skillsRequired = { $all: skillsArray.map(s => new RegExp(s, 'i')) };
     }
 
     // Text search
@@ -104,9 +113,9 @@ exports.getAllJobs = async (req, res) => {
       });
     }
 
-    // Pagination
-    const skip = (page - 1) * limit;
-    query = query.skip(skip).limit(parseInt(limit));
+    // Pagination with parsed values
+    const skip = (pageNum - 1) * limitNum;
+    query = query.skip(skip).limit(limitNum);
 
     // Sort by newest first
     query = query.sort('-createdAt');
@@ -120,8 +129,8 @@ exports.getAllJobs = async (req, res) => {
       status: 'success',
       results: jobs.length,
       total: totalJobs,
-      page: parseInt(page),
-      pages: Math.ceil(totalJobs / limit),
+      page: pageNum,
+      pages: Math.ceil(totalJobs / limitNum),
       data: {
         jobs
       }
@@ -278,6 +287,290 @@ exports.getEmployerJobs = async (req, res) => {
     res.status(500).json({
       status: 'error',
       message: 'Server error while fetching jobs'
+    });
+  }
+};
+
+// @desc    Advanced job search with filters
+// @route   GET /api/jobs/search
+// @access  Public
+exports.advancedSearch = async (req, res) => {
+  try {
+    const {
+      search,
+      location,
+      jobType,
+      experienceLevel,
+      skills,
+      minSalary,
+      maxSalary,
+      startDate,
+      endDate,
+      deadlineAfter,
+      sortBy = 'newest',
+      page = 1,
+      limit = 10
+    } = req.query;
+
+    // ✅ CRITICAL FIX: Parse and validate pagination parameters
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.min(Math.max(1, parseInt(limit) || 10), 50);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Build filters object
+    const filters = {
+      search,
+      location,
+      jobType,
+      experienceLevel,
+      skills,
+      minSalary,
+      maxSalary,
+      startDate,
+      endDate,
+      deadlineAfter,
+      sortBy
+    };
+
+    // Build aggregation pipeline
+    const pipeline = buildSearchAggregation(filters);
+
+    // Clone pipeline for count
+    const countPipeline = [...pipeline];
+    countPipeline.push({ $count: 'total' });
+
+    // Execute queries in parallel with parsed values
+    const [results, countResult] = await Promise.all([
+      Job.aggregate(pipeline).skip(skip).limit(limitNum),
+      Job.aggregate(countPipeline)
+    ]);
+
+    const totalJobs = countResult.length > 0 ? countResult[0].total : 0;
+
+    res.status(200).json({
+      status: 'success',
+      results: results.length,
+      total: totalJobs,
+      page: pageNum,
+      pages: Math.ceil(totalJobs / limitNum),
+      data: {
+        jobs: results,
+        filters: {
+          search: search || null,
+          location: location || null,
+          jobType: jobType || null,
+          experienceLevel: experienceLevel || null,
+          skills: skills ? (Array.isArray(skills) ? skills : [skills]) : null,
+          minSalary: minSalary || null,
+          maxSalary: maxSalary || null,
+          sortBy: sortBy
+        },
+        pagination: {
+          currentPage: pageNum,
+          totalPages: Math.ceil(totalJobs / limitNum),
+          hasMore: skip + limitNum < totalJobs
+        }
+      }
+    });
+  } catch (error) {
+    // ✅ CRITICAL FIX: Detailed error logging for debugging
+    console.error('🔍 ADVANCED SEARCH ERROR DETAILS:');
+    console.error('Error Type:', error.name);
+    console.error('Error Message:', error.message);
+    console.error('Stack Trace:', error.stack);
+    console.error('Query Parameters:', req.query);
+    
+    // Check for specific MongoDB errors
+    if (error.name === 'MongoError' || error.name === 'MongoServerError') {
+      console.error('MongoDB Error Code:', error.code);
+      console.error('MongoDB Error Details:', error.errmsg);
+    }
+
+    res.status(500).json({
+      status: 'error',
+      message: 'Server error while searching jobs',
+      debug: process.env.NODE_ENV === 'development' ? {
+        error: error.message,
+        query: req.query
+      } : undefined
+    });
+  }
+};
+
+// @desc    Get search statistics and facets
+// @route   GET /api/jobs/search/stats
+// @access  Public
+exports.getSearchStats = async (req, res) => {
+  try {
+    const {
+      search,
+      location,
+      jobType,
+      experienceLevel,
+      skills,
+      minSalary,
+      maxSalary
+    } = req.query;
+
+    const filters = {
+      search,
+      location,
+      jobType,
+      experienceLevel,
+      skills,
+      minSalary,
+      maxSalary
+    };
+
+    const stats = await getSearchStats(Job, filters);
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        ...stats,
+        filtersApplied: filters
+      }
+    });
+  } catch (error) {
+    console.error('Get search stats error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Server error while fetching search statistics'
+    });
+  }
+};
+
+// @desc    Get skill suggestions for search
+// @route   GET /api/jobs/search/skills
+// @access  Public
+exports.getSkillSuggestions = async (req, res) => {
+  try {
+    const { search, location, jobType, experienceLevel } = req.query;
+
+    const filters = { search, location, jobType, experienceLevel };
+
+    const skills = await getSkillSuggestions(Job, filters);
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        skills: skills,
+        total: skills.length,
+        filtersApplied: filters
+      }
+    });
+  } catch (error) {
+    console.error('Get skill suggestions error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Server error while fetching skill suggestions'
+    });
+  }
+};
+
+// @desc    Search jobs by multiple locations
+// @route   GET /api/jobs/search/locations
+// @access  Public
+exports.searchByLocations = async (req, res) => {
+  try {
+    const { locations, jobType, experienceLevel, limit = 20 } = req.query;
+
+    if (!locations) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'Locations parameter is required'
+      });
+    }
+
+    const locationsArray = Array.isArray(locations) ? locations : locations.split(',');
+
+    const jobs = await Job.find({
+      isActive: true,
+      location: { $in: locationsArray.map(l => new RegExp(l.trim(), 'i')) },
+      ...(jobType && { jobType }),
+      ...(experienceLevel && { experienceLevel })
+    })
+    .populate('employerId', 'name company')
+    .limit(parseInt(limit) || 20)
+    .sort('-createdAt');
+
+    // Group jobs by location
+    const jobsByLocation = {};
+    locationsArray.forEach(location => {
+      jobsByLocation[location] = jobs.filter(job => 
+        new RegExp(location.trim(), 'i').test(job.location)
+      );
+    });
+
+    res.status(200).json({
+      status: 'success',
+      results: jobs.length,
+      data: {
+        jobsByLocation,
+        totalJobs: jobs.length,
+        locations: locationsArray
+      }
+    });
+  } catch (error) {
+    console.error('Search by locations error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Server error while searching by locations'
+    });
+  }
+};
+
+// @desc    Get jobs within salary range
+// @route   GET /api/jobs/search/salary-range
+// @access  Public
+exports.getJobsBySalaryRange = async (req, res) => {
+  try {
+    const { min, max, jobType, location, limit = 20 } = req.query;
+
+    if (!min && !max) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'Min or max salary parameter is required'
+      });
+    }
+
+    const query = { isActive: true };
+
+    query.salary = {};
+    
+    if (min) {
+      query.salary.min = { $gte: parseInt(min) || 0 };
+    }
+    
+    if (max) {
+      query.salary.max = { $lte: parseInt(max) || Number.MAX_SAFE_INTEGER };
+    }
+
+    if (jobType) query.jobType = jobType;
+    if (location) query.location = new RegExp(location, 'i');
+
+    const limitNum = Math.min(parseInt(limit) || 20, 50);
+    const jobs = await Job.find(query)
+      .populate('employerId', 'name company')
+      .limit(limitNum)
+      .sort('-salary.max');
+
+    res.status(200).json({
+      status: 'success',
+      results: jobs.length,
+      data: {
+        jobs: jobs,
+        salaryRange: { min: min || 'any', max: max || 'any' },
+        averageSalary: jobs.length > 0 
+          ? Math.round(jobs.reduce((sum, job) => sum + (job.salary.max || 0), 0) / jobs.length)
+          : 0
+      }
+    });
+  } catch (error) {
+    console.error('Get jobs by salary range error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Server error while fetching jobs by salary range'
     });
   }
 };
