@@ -3,6 +3,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const dotenv = require('dotenv');
+const path = require('path');
 
 // Load environment variables
 dotenv.config();
@@ -10,6 +11,7 @@ dotenv.config();
 // Import routes
 const authRoutes = require('./routes/auth.routes');
 const jobRoutes = require('./routes/job.routes');
+const resumeRoutes = require('./routes/resume.routes');
 
 // Initialize express app
 const app = express();
@@ -24,9 +26,13 @@ app.use(morgan('dev')); // HTTP request logger
 app.use(express.json()); // Parse JSON bodies
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
 
+// Serve uploaded files statically
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/jobs', jobRoutes);
+app.use('/api/resume', resumeRoutes);
 
 // Health check route
 app.get('/api/health', (req, res) => {
@@ -49,7 +55,10 @@ app.get('/', (req, res) => {
       me: 'GET /api/auth/me (protected)',
       jobs: 'GET /api/jobs',
       'create job': 'POST /api/jobs (employer only)',
-      'get job': 'GET /api/jobs/:id'
+      'get job': 'GET /api/jobs/:id',
+      'upload resume': 'POST /api/resume/upload (jobseeker only)',
+      'get resume': 'GET /api/resume/my-resume (protected)',
+      'analyze resume': 'POST /api/resume/analyze (protected)'
     }
   });
 });
