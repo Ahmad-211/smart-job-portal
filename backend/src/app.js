@@ -12,6 +12,8 @@ dotenv.config();
 const authRoutes = require('./routes/auth.routes');
 const jobRoutes = require('./routes/job.routes');
 const resumeRoutes = require('./routes/resume.routes');
+const applicationRoutes = require('./routes/application.routes');
+const adminRoutes = require('./routes/admin.routes');
 
 // Initialize express app
 const app = express();
@@ -33,6 +35,8 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 app.use('/api/auth', authRoutes);
 app.use('/api/jobs', jobRoutes);
 app.use('/api/resume', resumeRoutes);
+app.use('/api/applications', applicationRoutes);
+app.use('/api/admin', adminRoutes); // Admin routes
 
 // Health check route
 app.get('/api/health', (req, res) => {
@@ -58,7 +62,12 @@ app.get('/', (req, res) => {
       'get job': 'GET /api/jobs/:id',
       'upload resume': 'POST /api/resume/upload (jobseeker only)',
       'get resume': 'GET /api/resume/my-resume (protected)',
-      'analyze resume': 'POST /api/resume/analyze (protected)'
+      'analyze resume': 'POST /api/resume/analyze (protected)',
+      'apply job': 'POST /api/applications (jobseeker only)',
+      'my applications': 'GET /api/applications/my-applications (protected)',
+      'job applicants': 'GET /api/applications/job/:jobId/applicants (employer only)',
+      'admin users': 'GET /api/admin/users (admin only)',
+      'admin stats': 'GET /api/admin/stats (admin only)'
     }
   });
 });
