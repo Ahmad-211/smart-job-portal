@@ -19,27 +19,27 @@ function calculateMatchScore(resumeSkills, jobSkills) {
   const jobSkillsLower = jobSkills.map(s => s.toLowerCase());
 
   // Find matched skills
-  const matchedSkills = jobSkillsLower.filter(skill => 
-    resumeSkillsLower.some(resumeSkill => 
+  const matchedSkills = jobSkillsLower.filter(skill =>
+    resumeSkillsLower.some(resumeSkill =>
       isSkillMatch(resumeSkill, skill)
     )
   );
 
   // Find missing skills
-  const missingSkills = jobSkillsLower.filter(skill => 
-    !resumeSkillsLower.some(resumeSkill => 
+  const missingSkills = jobSkillsLower.filter(skill =>
+    !resumeSkillsLower.some(resumeSkill =>
       isSkillMatch(resumeSkill, skill)
     )
   );
 
   // Calculate match score (0-100)
   const matchPercentage = Math.round((matchedSkills.length / jobSkillsLower.length) * 100);
-  
+
   // Bonus points for having extra relevant skills
-  const extraSkills = resumeSkillsLower.filter(skill => 
+  const extraSkills = resumeSkillsLower.filter(skill =>
     !jobSkillsLower.includes(skill) && isRelevantSkill(skill)
   );
-  
+
   const bonusPoints = Math.min(extraSkills.length * 2, 10); // Max 10 bonus points
   const finalScore = Math.min(matchPercentage + bonusPoints, 100);
 
@@ -91,7 +91,7 @@ function isSkillMatch(skill1, skill2) {
  */
 function isRelevantSkill(skill) {
   const genericSkills = [
-    'computer', 'software', 'programming', 'coding', 
+    'computer', 'software', 'programming', 'coding',
     'development', 'technology', 'it', 'tech'
   ];
   return !genericSkills.includes(skill.toLowerCase());
@@ -120,7 +120,7 @@ function rankApplicants(applications) {
     if (b.matchScore !== a.matchScore) {
       return b.matchScore - a.matchScore;
     }
-    
+
     // Secondary: application date (newest first)
     return new Date(b.appliedAt) - new Date(a.appliedAt);
   });
@@ -134,7 +134,7 @@ function rankApplicants(applications) {
  */
 function getSkillGapAnalysis(resumeSkills, jobSkills) {
   const matchResult = calculateMatchScore(resumeSkills, jobSkills);
-  
+
   return {
     currentMatch: matchResult.score,
     skillsToLearn: matchResult.missingSkills,
